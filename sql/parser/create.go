@@ -576,9 +576,11 @@ func (node *InterleaveDef) Format(buf *bytes.Buffer, f FmtFlags) {
 // CreateTable represents a CREATE TABLE statement.
 type CreateTable struct {
 	IfNotExists bool
+	IfAsExists  bool
 	Table       *QualifiedName
 	Interleave  *InterleaveDef
 	Defs        TableDefs
+	Rows        *Select
 }
 
 // Format implements the NodeFormatter interface.

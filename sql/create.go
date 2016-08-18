@@ -74,7 +74,6 @@ func (n *createDatabaseNode) expandPlan() error {
 
 func (n *createDatabaseNode) Start() error {
 	desc := makeDatabaseDesc(n.n)
-
 	created, err := n.p.createDatabase(&desc, n.n.IfNotExists)
 	if err != nil {
 		return err
@@ -98,7 +97,10 @@ func (n *createDatabaseNode) Start() error {
 	return nil
 }
 
-func (n *createDatabaseNode) Next() (bool, error)                 { return false, nil }
+func (n *createDatabaseNode) Next() (bool, error) {
+
+	return false, nil
+}
 func (n *createDatabaseNode) Columns() []ResultColumn             { return make([]ResultColumn, 0) }
 func (n *createDatabaseNode) Ordering() orderingInfo              { return orderingInfo{} }
 func (n *createDatabaseNode) Values() parser.DTuple               { return parser.DTuple{} }
@@ -245,8 +247,18 @@ func (p *planner) CreateTable(n *parser.CreateTable) (planNode, error) {
 	if err := p.checkPrivilege(dbDesc, privilege.CREATE); err != nil {
 		return nil, err
 	}
-
 	return &createTableNode{p: p, n: n, dbDesc: dbDesc}, nil
+}
+
+func (p *planner) getResultColumns(n *parser.CreateTable) ([]ResultColumn, error) {
+	selectClause := n.Rows.Select.(*parser.SelectClause)
+	s, err := p.SelectClause(selectClause, n.Rows.OrderBy, n.Rows.Limit, []parser.Datum{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(s.Columns())
+	resultColumns := s.Columns()
+	return resultColumns, nil
 }
 
 func hoistConstraints(n *parser.CreateTable) {
@@ -270,7 +282,18 @@ func (n *createTableNode) expandPlan() error {
 
 func (n *createTableNode) Start() error {
 	hoistConstraints(n.n)
-	desc, err := MakeTableDesc(n.n, n.dbDesc.ID)
+	var desc sqlbase.TableDescriptor
+	var resultColumns []ResultColumn
+	var err error
+	if n.n.IfAsExists {
+		resultColumns, err = n.p.getResultColumns(n.n)
+		if err != nil {
+			return err
+		}
+		desc, err = MakeTableDescIfAs(n.n, n.dbDesc.ID, resultColumns)
+	} else {
+		desc, err = MakeTableDesc(n.n, n.dbDesc.ID)
+	}
 	if err != nil {
 		return err
 	}
@@ -404,7 +427,21 @@ func (n *createTableNode) Start() error {
 			return err
 		}
 	}
-
+	if n.n.IfAsExists {
+		resultColumns, err := n.p.getResultColumns(n.n)
+		if err != nil {
+			return err
+		}
+		desiredTypesFromSelect := make([]parser.Datum, len(resultColumns))
+		for i, col := range resultColumns {
+			desiredTypesFromSelect[i] = col.Typ
+		}
+		insertPlan, err := n.p.newPlan(&parser.Insert{Table: n.n.Table, Rows: n.n.Rows}, desiredTypesFromSelect, false)
+		if err != nil {
+			return err
+		}
+		insertPlan.Start()
+	}
 	return nil
 }
 
@@ -737,6 +774,30 @@ func CreateTableDescriptor(
 	return desc
 }
 
+// MakeTableDescIfAs is the MakeTableDesc method for when we have a table that is created with the CREATE AS format.
+func MakeTableDescIfAs(p *parser.CreateTable, parentID sqlbase.ID, resultColumns []ResultColumn) (sqlbase.TableDescriptor, error) {
+	desc := sqlbase.TableDescriptor{}
+	if err := p.Table.NormalizeTableName(""); err != nil {
+		return desc, err
+	}
+	desc.Name = p.Table.Table()
+	desc.ParentID = parentID
+	desc.FormatVersion = sqlbase.FamilyFormatVersion
+	// We don't use version 0.
+	desc.Version = 1
+	for _, colRes := range resultColumns {
+		colType, _ := parser.DatumTypeToColumnType(colRes.Typ)
+		columnTableDef := parser.ColumnTableDef{Name: parser.Name(colRes.Name), Type: colType}
+		col, idx, err := sqlbase.MakeColumnDefDescs(&columnTableDef)
+		if err != nil {
+			return desc, err
+		}
+		fmt.Println(idx)
+		desc.AddColumn(*col)
+	}
+	return desc, nil
+}
+
 // MakeTableDesc creates a table descriptor from a CreateTable statement.
 func MakeTableDesc(p *parser.CreateTable, parentID sqlbase.ID) (sqlbase.TableDescriptor, error) {
 	desc := sqlbase.TableDescriptor{}
@@ -751,6 +812,7 @@ func MakeTableDesc(p *parser.CreateTable, parentID sqlbase.ID) (sqlbase.TableDes
 
 	var primaryIndexColumnSet map[parser.Name]struct{}
 	for _, def := range p.Defs {
+		fmt.Println(def)
 		switch d := def.(type) {
 		case *parser.ColumnTableDef:
 			col, idx, err := sqlbase.MakeColumnDefDescs(d)

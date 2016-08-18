@@ -324,13 +324,22 @@ func (p *planner) getTableNames(dbDesc *sqlbase.DatabaseDescriptor) (parser.Qual
 // getAliasedTableLease implements the SchemaAccessor interface.
 func (p *planner) getAliasedTableLease(n parser.TableExpr) (*sqlbase.TableDescriptor, error) {
 	ate, ok := n.(*parser.AliasedTableExpr)
+	fmt.Println("first")
+	var table *parser.QualifiedName
+	var secondOk bool
 	if !ok {
-		return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
+		table, secondOk = n.(*parser.QualifiedName)
+		if !secondOk {
+			return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
+		}
+	} else {
+		table, secondOk = ate.Expr.(*parser.QualifiedName)
+		if !secondOk {
+			return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
+		}
 	}
-	table, ok := ate.Expr.(*parser.QualifiedName)
-	if !ok {
-		return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
-	}
+	fmt.Println("second")
+
 	desc, err := p.getTableLease(table)
 	if err != nil {
 		return nil, err

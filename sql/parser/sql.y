@@ -311,6 +311,7 @@ func (u *sqlSymUnion) interleave() *InterleaveDef {
 %type <Statement> create_database_stmt
 %type <Statement> create_index_stmt
 %type <Statement> create_table_stmt
+%type <Statement> create_table_as_stmt
 %type <Statement> delete_stmt
 %type <Statement> drop_stmt
 %type <Statement> explain_stmt
@@ -884,6 +885,7 @@ create_stmt:
   create_database_stmt
 | create_index_stmt
 | create_table_stmt
+| create_table_as_stmt
 
 // DELETE FROM query
 delete_stmt:
@@ -1473,11 +1475,22 @@ for_grantee_clause:
 create_table_stmt:
   CREATE TABLE any_name '(' opt_table_elem_list ')' opt_interleave
   {
-    $$.val = &CreateTable{Table: $3.qname(), IfNotExists: false, Interleave: $7.interleave(), Defs: $5.tblDefs()}
+    $$.val = &CreateTable{Table: $3.qname(), IfAsExists: false, IfNotExists: false, Interleave: $7.interleave(), Defs: $5.tblDefs(), Rows: nil}
   }
 | CREATE TABLE IF NOT EXISTS any_name '(' opt_table_elem_list ')' opt_interleave
   {
-    $$.val = &CreateTable{Table: $6.qname(), IfNotExists: true, Interleave: $10.interleave(), Defs: $8.tblDefs()}
+    $$.val = &CreateTable{Table: $6.qname(), IfAsExists: false, IfNotExists: true, Interleave: $10.interleave(), Defs: $8.tblDefs(), Rows: nil}
+  }
+
+// CREATE TABLE relname AS select_stmt [ WITH [NO] DATA ]
+create_table_as_stmt:
+  CREATE TABLE any_name AS select_stmt
+  {
+    $$.val = &CreateTable{Table: $3.qname(), IfAsExists: true, IfNotExists: false, Interleave: nil, Defs: nil, Rows: $5.slct() }
+  }
+| CREATE TABLE IF NOT EXISTS any_name AS select_stmt
+  {
+    $$.val = &CreateTable{Table: $6.qname(), IfAsExists: true, IfNotExists: true, Interleave: nil, Defs: nil, Rows: $8.slct()} 
   }
 
 opt_table_elem_list:
