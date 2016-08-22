@@ -1490,7 +1490,7 @@ create_table_as_stmt:
   }
 | CREATE TABLE IF NOT EXISTS any_name AS select_stmt
   {
-    $$.val = &CreateTable{Table: $6.qname(), IfAsExists: true, IfNotExists: true, Interleave: nil, Defs: nil, Rows: $8.slct()} 
+    $$.val = &CreateTable{Table: $6.qname(), IfAsExists: true, IfNotExists: true, Interleave: nil, Defs: nil, Rows: $8.slct()}
   }
 
 opt_table_elem_list:

@@ -325,17 +325,13 @@ func (p *planner) getTableNames(dbDesc *sqlbase.DatabaseDescriptor) (parser.Qual
 func (p *planner) getAliasedTableLease(n parser.TableExpr) (*sqlbase.TableDescriptor, error) {
 	ate, ok := n.(*parser.AliasedTableExpr)
 	var table *parser.QualifiedName
-	var secondOk bool
 	if !ok {
-		table, secondOk = n.(*parser.QualifiedName)
-		if !secondOk {
-			return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
-		}
+		table, ok = n.(*parser.QualifiedName)
 	} else {
-		table, secondOk = ate.Expr.(*parser.QualifiedName)
-		if !secondOk {
-			return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
-		}
+		table, ok = ate.Expr.(*parser.QualifiedName)
+	}
+	if !ok {
+		return nil, errors.Errorf("TODO(pmattis): unsupported FROM: %s", n)
 	}
 
 	desc, err := p.getTableLease(table)

@@ -65,7 +65,7 @@ func (p *planner) Insert(
 				return nil, err
 			}
 		}
-		// TODO(dan): Support RETURNING in UPSERTs.f
+		// TODO(dan): Support RETURNING in UPSERTs.
 		if n.Returning != nil {
 			return nil, fmt.Errorf("RETURNING is not supported with UPSERT")
 		}
@@ -189,6 +189,7 @@ func (p *planner) Insert(
 			tw = &tableUpserter{ri: ri, fkTables: fkTables, updateCols: updateCols, conflictIndex: *conflictIndex, evaler: helper}
 		}
 	}
+
 	in := &insertNode{
 		n:                     n,
 		editNodeBase:          en,
@@ -211,6 +212,7 @@ func (p *planner) Insert(
 }
 
 func (n *insertNode) expandPlan() error {
+
 	// Prepare structures for building values to pass to rh.
 	if n.rh.exprs != nil {
 		// In some cases (e.g. `INSERT INTO t (a) ...`) rowVals does not contain all the table
@@ -233,6 +235,7 @@ func (n *insertNode) expandPlan() error {
 			n.run.rowIdxToRetIdx[i] = colIDToRetIndex[col.ID]
 		}
 	}
+
 	return n.run.expandEditNodePlan(&n.editNodeBase, n.tw)
 }
 
@@ -240,9 +243,11 @@ func (n *insertNode) Start() error {
 	if err := n.rh.startPlans(); err != nil {
 		return err
 	}
+
 	if err := n.run.startEditNode(); err != nil {
 		return err
 	}
+
 	return n.run.tw.init(n.p.txn)
 }
 

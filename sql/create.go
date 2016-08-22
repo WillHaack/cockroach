@@ -252,12 +252,19 @@ func (p *planner) CreateTable(n *parser.CreateTable) (planNode, error) {
 }
 
 func (p *planner) getResultColumns(n *parser.CreateTable) ([]ResultColumn, error) {
-	selectClause := n.Rows.Select.(*parser.SelectClause)
+	var selectClause *parser.SelectClause
+	switch ps := n.Rows.Select.(type) {
+	default:
+		return nil, errors.Errorf("Invalid Select type.")
+	case *parser.SelectClause:
+		selectClause = ps
+	case *parser.ParenSelect:
+		selectClause = ps.Select.Select.(*parser.SelectClause)
+	}
 	s, err := p.SelectClause(selectClause, n.Rows.OrderBy, n.Rows.Limit, []parser.Datum{}, 0)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(s.Columns())
 	resultColumns := s.Columns()
 	return resultColumns, nil
 }
@@ -285,6 +292,7 @@ func (n *createTableNode) expandPlan() error {
 }
 
 func (n *createTableNode) Start() error {
+	fmt.Println("start started")
 	hoistConstraints(n.n)
 	var desc sqlbase.TableDescriptor
 	var resultColumns []ResultColumn
@@ -453,26 +461,21 @@ func (n *createTableNode) Start() error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("before insertPlan Next")
 		for done := true; done; done, err = insertPlan.Next() {
-			fmt.Println(done)
 			if err != nil {
 				return err
 			}
 		}
-		fmt.Println("after insertPlan Next")
 	}
-	fmt.Println("erroring out maybee?")
+	fmt.Println("start ended")
 	return nil
 }
 
 func (n *createTableNode) Next() (bool, error) {
-	fmt.Println("create table next!")
 	return false, nil
 }
 
 func (n *createTableNode) Columns() []ResultColumn {
-	fmt.Println("Column!")
 	if n.n.IfAsExists {
 		return n.insertPlan.Columns()
 	}
@@ -480,7 +483,6 @@ func (n *createTableNode) Columns() []ResultColumn {
 }
 
 func (n *createTableNode) Ordering() orderingInfo {
-	fmt.Println("Ordering!")
 	if n.n.IfAsExists {
 		return n.insertPlan.Ordering()
 	}
@@ -498,6 +500,12 @@ func (n *createTableNode) ExplainTypes(_ func(string, string)) {}
 func (n *createTableNode) SetLimitHint(_ int64, _ bool)        {}
 func (n *createTableNode) MarkDebug(mode explainMode)          {}
 func (n *createTableNode) ExplainPlan(v bool) (string, string, []planNode) {
+	fmt.Println("explaining plan")
+	/*
+		if n.n.IfAsExists {
+			return "create database", "", []planNode{n.insertPlan}
+		}
+	*/
 	return "create table", "", nil
 }
 
@@ -832,11 +840,10 @@ func MakeTableDescIfAs(p *parser.CreateTable, parentID sqlbase.ID, resultColumns
 	for _, colRes := range resultColumns {
 		colType, _ := parser.DatumTypeToColumnType(colRes.Typ)
 		columnTableDef := parser.ColumnTableDef{Name: parser.Name(colRes.Name), Type: colType}
-		col, idx, err := sqlbase.MakeColumnDefDescs(&columnTableDef)
+		col, _, err := sqlbase.MakeColumnDefDescs(&columnTableDef)
 		if err != nil {
 			return desc, err
 		}
-		fmt.Println(idx)
 		desc.AddColumn(*col)
 	}
 	return desc, nil
@@ -856,7 +863,6 @@ func MakeTableDesc(p *parser.CreateTable, parentID sqlbase.ID) (sqlbase.TableDes
 
 	var primaryIndexColumnSet map[parser.Name]struct{}
 	for _, def := range p.Defs {
-		fmt.Println(def)
 		switch d := def.(type) {
 		case *parser.ColumnTableDef:
 			col, idx, err := sqlbase.MakeColumnDefDescs(d)
