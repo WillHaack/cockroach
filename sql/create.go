@@ -226,9 +226,10 @@ func (n *createIndexNode) ExplainPlan(v bool) (string, string, []planNode) {
 }
 
 type createTableNode struct {
-	p      *planner
-	n      *parser.CreateTable
-	dbDesc *sqlbase.DatabaseDescriptor
+	p          *planner
+	n          *parser.CreateTable
+	dbDesc     *sqlbase.DatabaseDescriptor
+	insertPlan planNode
 }
 
 // CreateTable creates a table.
@@ -277,6 +278,9 @@ func hoistConstraints(n *parser.CreateTable) {
 }
 
 func (n *createTableNode) expandPlan() error {
+	if n.n.IfAsExists && n.insertPlan != nil {
+		return n.insertPlan.expandPlan()
+	}
 	return nil
 }
 
@@ -440,15 +444,55 @@ func (n *createTableNode) Start() error {
 		if err != nil {
 			return err
 		}
-		insertPlan.Start()
+		n.insertPlan = insertPlan
+		err = insertPlan.expandPlan()
+		if err != nil {
+			return err
+		}
+		err = insertPlan.Start()
+		if err != nil {
+			return err
+		}
+		fmt.Println("before insertPlan Next")
+		for done := true; done; done, err = insertPlan.Next() {
+			fmt.Println(done)
+			if err != nil {
+				return err
+			}
+		}
+		fmt.Println("after insertPlan Next")
 	}
+	fmt.Println("erroring out maybee?")
 	return nil
 }
 
-func (n *createTableNode) Next() (bool, error)                 { return false, nil }
-func (n *createTableNode) Columns() []ResultColumn             { return make([]ResultColumn, 0) }
-func (n *createTableNode) Ordering() orderingInfo              { return orderingInfo{} }
-func (n *createTableNode) Values() parser.DTuple               { return parser.DTuple{} }
+func (n *createTableNode) Next() (bool, error) {
+	fmt.Println("create table next!")
+	return false, nil
+}
+
+func (n *createTableNode) Columns() []ResultColumn {
+	fmt.Println("Column!")
+	if n.n.IfAsExists {
+		return n.insertPlan.Columns()
+	}
+	return make([]ResultColumn, 0)
+}
+
+func (n *createTableNode) Ordering() orderingInfo {
+	fmt.Println("Ordering!")
+	if n.n.IfAsExists {
+		return n.insertPlan.Ordering()
+	}
+	return orderingInfo{}
+}
+
+func (n *createTableNode) Values() parser.DTuple {
+	if n.n.IfAsExists {
+		return n.insertPlan.Values()
+	}
+	return parser.DTuple{}
+}
 func (n *createTableNode) DebugValues() debugValues            { return debugValues{} }
 func (n *createTableNode) ExplainTypes(_ func(string, string)) {}
 func (n *createTableNode) SetLimitHint(_ int64, _ bool)        {}
