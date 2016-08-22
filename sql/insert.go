@@ -28,6 +28,10 @@ import (
 )
 
 type insertNode struct {
+	// insertNodes cannot normally be constructed without the table they're inserting into existing.
+	// This is a problem when an insertNode is being used to explain the plan of a createTableNode
+	// that is executing a "CREATE TABLE ... AS" statement.
+	isExplainNode bool
 	// The following fields are populated during makePlan.
 	editNodeBase
 	defaultExprs []parser.TypedExpr
@@ -483,8 +487,12 @@ func (n *insertNode) Ordering() orderingInfo {
 }
 
 func (n *insertNode) ExplainPlan(v bool) (name, description string, children []planNode) {
+	if n.isExplainNode {
+		return "insert", "", nil
+	}
 	var buf bytes.Buffer
 	if v {
+		fmt.Println("V!")
 		fmt.Fprintf(&buf, "into %s (", n.tableDesc.Name)
 		for i, col := range n.insertCols {
 			if i > 0 {
@@ -501,7 +509,7 @@ func (n *insertNode) ExplainPlan(v bool) (name, description string, children []p
 		}
 		fmt.Fprintf(&buf, ")")
 	}
-
+	fmt.Println("hey!!!")
 	subplans := []planNode{n.run.rows}
 	for _, e := range n.defaultExprs {
 		subplans = n.p.collectSubqueryPlans(e, subplans)

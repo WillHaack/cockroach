@@ -501,11 +501,9 @@ func (n *createTableNode) SetLimitHint(_ int64, _ bool)        {}
 func (n *createTableNode) MarkDebug(mode explainMode)          {}
 func (n *createTableNode) ExplainPlan(v bool) (string, string, []planNode) {
 	fmt.Println("explaining plan")
-	/*
-		if n.n.IfAsExists {
-			return "create database", "", []planNode{n.insertPlan}
-		}
-	*/
+	if n.n.IfAsExists {
+		return "create table", "", []planNode{&insertNode{insertRows: n.n.Rows.Select, isExplainNode: true}}
+	}
 	return "create table", "", nil
 }
 
