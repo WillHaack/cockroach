@@ -40,7 +40,6 @@ type editNodeBase struct {
 }
 
 func (p *planner) makeEditNode(t parser.TableExpr, autoCommit bool, priv privilege.Kind) (editNodeBase, error) {
-	fmt.Println("make edit node, before get aliased table lease")
 	tableDesc, err := p.getAliasedTableLease(t)
 	if err != nil {
 		return editNodeBase{}, err
@@ -98,11 +97,9 @@ func (r *editNodeRun) expandEditNodePlan(en *editNodeBase, tw tableWriter) error
 }
 
 func (r *editNodeRun) startEditNode() error {
-	fmt.Println("got into starte edit node")
 	if err := r.tw.start(); err != nil {
 		return err
 	}
-	fmt.Println("made it this far even")
 
 	return r.rows.Start()
 }

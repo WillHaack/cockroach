@@ -55,12 +55,10 @@ type insertNode struct {
 func (p *planner) Insert(
 	n *parser.Insert, desiredTypes []parser.Datum, autoCommit bool,
 ) (planNode, error) {
-	fmt.Println("insert created")
 	en, err := p.makeEditNode(n.Table, autoCommit, privilege.INSERT)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("before on conflict")
 	if n.OnConflict != nil {
 		if !n.OnConflict.DoNothing {
 			if err := p.checkPrivilege(en.tableDesc, privilege.UPDATE); err != nil {
@@ -191,7 +189,6 @@ func (p *planner) Insert(
 			tw = &tableUpserter{ri: ri, fkTables: fkTables, updateCols: updateCols, conflictIndex: *conflictIndex, evaler: helper}
 		}
 	}
-
 	in := &insertNode{
 		n:                     n,
 		editNodeBase:          en,
@@ -214,7 +211,6 @@ func (p *planner) Insert(
 }
 
 func (n *insertNode) expandPlan() error {
-
 	// Prepare structures for building values to pass to rh.
 	if n.rh.exprs != nil {
 		// In some cases (e.g. `INSERT INTO t (a) ...`) rowVals does not contain all the table
@@ -237,20 +233,16 @@ func (n *insertNode) expandPlan() error {
 			n.run.rowIdxToRetIdx[i] = colIDToRetIndex[col.ID]
 		}
 	}
-
 	return n.run.expandEditNodePlan(&n.editNodeBase, n.tw)
 }
 
 func (n *insertNode) Start() error {
-	fmt.Println("insert StartIO")
 	if err := n.rh.startPlans(); err != nil {
 		return err
 	}
-	fmt.Println("test")
 	if err := n.run.startEditNode(); err != nil {
 		return err
 	}
-	fmt.Println("test2")
 	return n.run.tw.init(n.p.txn)
 }
 
